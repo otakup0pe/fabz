@@ -165,24 +165,18 @@ module rounded_sloped_guard(
 // Creates a rectangular notch on the rear of the plate for the mic clip.
 module clip_notch() {
     // The plate is a hull() of circles centered on the X-axis (y=0).
-    // The rearmost point of the plate is determined by the circle with the largest radius.
-    rearmost_y = -max(
-        (antenna_diameter/2 + guard_wall_thickness + plate_padding),
-        max(
-            (channel_knob_diameter/2 + guard_wall_thickness + plate_padding),
-            (volume_knob_diameter/2 + guard_wall_thickness + plate_padding)
-        )
-    );
+    // The rearmost point of the plate is determined by the antenna's radius.
+    rearmost_y = -(antenna_diameter/2 - 2);
 
-    // Position the notch to cut from the rearmost point inwards.
+    // Position the notch to cut from the rearmost point outwards (more negative Y).
     translate([
         clip_notch_x_offset - (clip_notch_width/2),
-        rearmost_y - epsilon, // Start cut slightly outside the object
+        rearmost_y - clip_notch_depth - epsilon, // Start the cut at the full desired depth
         -epsilon // Start cut slightly below the plate
     ]) {
         cube([
             clip_notch_width,
-            clip_notch_depth + (2 * epsilon), // Ensure cut goes deep enough
+            clip_notch_depth + (2 * epsilon), // Cut back towards the rearmost point
             clip_notch_height + (2 * epsilon) // Ensure cut goes high enough
         ]);
     }
