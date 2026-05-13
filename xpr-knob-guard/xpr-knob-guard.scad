@@ -104,6 +104,46 @@ channel_knob_bottom_cut_height = 1.8;
 // Additional radius beyond the channel knob's radius for the cylindrical cut (in mm).
 channel_knob_bottom_cut_padding = 1.1;
 
+// --- Lanyard Hole ---
+// Vertical hole through the base for threading a lanyard cord. Set
+// diameter to 0 to skip. Default position sits just inside the rear
+// edge near the clip notch; adjust x/y to taste.
+lanyard_hole_diameter = 3.5; // [0:0.1:8]
+lanyard_hole_x = 11.0; // [-20:0.1:60]
+lanyard_hole_y = -8.5; // [-15:0.1:15]
+
+// --- Optional Engraved Labels ---
+// Useful for telling apart variants (e.g. "7550" vs "3500e"). Each
+// label is engraved as a recessed cut; leave empty to skip that label.
+
+// Text engraved on the front (+Y) face of the base. Empty to skip.
+label_front = "";
+// Text engraved on the back (-Y) face of the base. Empty to skip.
+label_back = "";
+// Text engraved on the bottom of the base. Empty to skip.
+label_bottom = "";
+// Font size for side-face labels (mm). Side faces are only as tall
+// as the plate, so ~2mm typically fits on a 3mm plate.
+label_side_size = 2.0; // [0.5:0.1:10]
+// Font size for the bottom label (mm). The bottom has more room.
+label_bottom_size = 4.0; // [0.5:0.1:20]
+// Depth that labels are engraved into the surface (mm).
+label_depth = 0.5; // [0.1:0.05:3]
+// Font for engraved labels. Must be installed for OpenSCAD to find it.
+label_font = "Liberation Sans:style=Bold";
+// X-position (along the antenna→volume axis) where side labels are
+// centered. Default sits over the channel knob, near the plate's
+// geometric midpoint.
+label_side_x = 17.7; // [-20:0.1:60]
+// Vertical offset for side labels relative to the plate's
+// mid-thickness (mm). 0 centers them on the edge.
+label_side_z_offset = 0.0; // [-3:0.1:3]
+// Position for the bottom label (mm). Default runs the label along
+// the +Y long edge, between the channel and volume knobs. Flip
+// label_bottom_y negative to put it along the -Y edge instead.
+label_bottom_x = 26.1; // [-20:0.1:60]
+label_bottom_y = 8.0; // [-15:0.1:15]
+
 // --- Here Be Dragons ---
 
 // Calculate positions based on distances
@@ -203,6 +243,74 @@ module squid_notch() {
 }
 
 
+// Maximum possible +Y boundary of the plate (any knob's outer radius).
+// Used so side-label cutters can safely exit any X position along the
+// plate without near-coincident faces causing CSG flicker.
+plate_max_y = max(antenna_diameter, channel_knob_diameter, volume_knob_diameter)/2
+    + guard_wall_thickness + plate_padding;
+// Generous outer clearance for side-label cutters past the plate.
+label_outer_clearance = 2.0;
+
+// Engraves the optional front (+Y) face label.
+module label_front_cutter() {
+    if (len(label_front) > 0) {
+        edge_y = channel_knob_diameter/2 + guard_wall_thickness + plate_padding;
+        outer_y = plate_max_y + label_outer_clearance;
+        cut_extent = outer_y - (edge_y - label_depth);
+        translate([label_side_x, outer_y, plate_thickness/2 + label_side_z_offset]) {
+            rotate([90, 0, 0]) {
+                mirror([1, 0, 0]) {
+                    linear_extrude(height = cut_extent) {
+                        text(label_front, size = label_side_size, font = label_font,
+                             halign = "center", valign = "center");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Engraves the optional back (-Y) face label.
+module label_back_cutter() {
+    if (len(label_back) > 0) {
+        edge_y = channel_knob_diameter/2 + guard_wall_thickness + plate_padding;
+        outer_y = plate_max_y + label_outer_clearance;
+        cut_extent = outer_y - (edge_y - label_depth);
+        translate([label_side_x, -edge_y + label_depth, plate_thickness/2 + label_side_z_offset]) {
+            rotate([90, 0, 0]) {
+                linear_extrude(height = cut_extent) {
+                    text(label_back, size = label_side_size, font = label_font,
+                         halign = "center", valign = "center");
+                }
+            }
+        }
+    }
+}
+
+// Drills the optional lanyard hole straight through the base plate.
+module lanyard_hole_cutter() {
+    if (lanyard_hole_diameter > 0) {
+        translate([lanyard_hole_x, lanyard_hole_y, -epsilon]) {
+            cylinder(h = plate_thickness + 2*epsilon, d = lanyard_hole_diameter);
+        }
+    }
+}
+
+// Engraves the optional bottom-face label. Mirrored in X so the
+// text reads correctly when looking at the underside of the print.
+module label_bottom_cutter() {
+    if (len(label_bottom) > 0) {
+        translate([label_bottom_x, label_bottom_y, -label_outer_clearance]) {
+            mirror([1, 0, 0]) {
+                linear_extrude(height = label_outer_clearance + label_depth) {
+                    text(label_bottom, size = label_bottom_size, font = label_font,
+                         halign = "center", valign = "center");
+                }
+            }
+        }
+    }
+}
+
 // Creates a cylindrical cut on the bottom of the plate, centered on the channel knob.
 module bottom_cut() {
     // This cutter's radius is the channel knob's radius plus a padding value.
@@ -285,4 +393,12 @@ difference() {
 
     // D. Cut the cylinder from the bottom
     translate(channel_knob_pos) bottom_cut();
+
+    // E. Engrave the optional labels
+    label_front_cutter();
+    label_back_cutter();
+    label_bottom_cutter();
+
+    // F. Drill the optional lanyard hole
+    lanyard_hole_cutter();
 }
